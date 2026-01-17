@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>推理游戏 - 网页版客户端</title>
+    <style>
+        /* 全局样式重置 + 统一字体 */
+        .message-container {
+            white-space: pre-line;
+            /* 将\n渲染为换行 */
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: "SimSun", 宋体, serif;
+        }
+
+        body {
+            background-color: #EDFCF3;
+            /* COLOR_ROOT_BG 主背景色 */
+            padding: 12px;
+            min-width: 800px;
+        }
+
+        /* ===== 全局配色常量（完全保留原配置 一字未改）===== */
+        :root {
+            --COLOR_ROOT_BG: #EDFCF3;
+            --COLOR_FRAME_ALL_BG: #EDFCF3;
+            --COLOR_MSG_PANEL_BG: #EDFCF3;
+            --COLOR_MSG_PANEL_FG: #B890D4;
+
+            --COLOR_TEXT_STATUS_DISCONNECT: #E785A6;
+            --COLOR_TEXT_STATUS_CONNECT: #8BC8E8;
+            --COLOR_TEXT_LABEL_TITLE: #5CA4D8;
+            --COLOR_TEXT_TAB_TITLE: #B890D4;
+            --COLOR_TEXT_BUTTON_NORMAL: #333333;
+            --COLOR_TEXT_BUTTON_HOVER: #FFFFFF;
+
+            --COLOR_MSG_SELF: #5CA4D8;
+            --COLOR_MSG_SYSTEM: #9C6CD3;
+            --COLOR_MSG_SUCCESS: #64B89C;
+            --COLOR_MSG_ERROR: #E76474;
+            --COLOR_MSG_TIP: #E8B569;
+            --COLOR_MSG_DEFAULT: #555555;
+
+            --COLOR_BTN_NORMAL_BG: #D9F1FC;
+            --COLOR_BTN_HOVER_BG: #8BC8E8;
+            --COLOR_ENTRY_BG: #FFFFFF;
+            --COLOR_ENTRY_FG: #333333;
+            --COLOR_ENTRY_SELECT_BG: #C8E2F0;
+            --COLOR_FRAME_BORDER: #8BC8E8;
+            --COLOR_SCROLL_BAR_BG: #E6F4EF;
+            --COLOR_SCROLL_BAR_ACTIVE: #5CA4D8;
+            --COLOR_TAB_SELECT_BG: #C8E2F0;
+            --COLOR_TAB_NORMAL_BG: #E6F4EF;
+
+            /* 布局优化变量 */
+            --BORDER_RADIUS: 8px;
+            --SHADOW_SOFT: 0 3px 6px rgba(140, 200, 232, 0.2);
+            --GAP_SMALL: 6px;
+            --GAP_MEDIUM: 10px;
+            --PANEL_HEADER_HEIGHT: 34px;
+            /* 适配放大字体微调高度 */
+        }
+
+        /* ===== 顶部状态栏（字体放大 适配高度）===== */
+        .status-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            height: 44px;
+            padding: 0 15px;
+            background-color: var(--COLOR_ROOT_BG);
+            border-radius: var(--BORDER_RADIUS);
+            box-shadow: var(--SHADOW_SOFT);
+            margin-bottom: var(--GAP_MEDIUM);
+        }
+
+        .status-text {
+            font-size: 14px;
+            color: var(--COLOR_TEXT_STATUS_DISCONNECT);
+        }
+
+        .control-buttons {
+            display: flex;
+            gap: var(--GAP_SMALL);
+        }
+
+        .btn {
+            height: 34px;
+            padding: 0 18px;
+            border: none;
+            border-radius: var(--BORDER_RADIUS);
+            background-color: var(--COLOR_BTN_NORMAL_BG);
+            color: var(--COLOR_TEXT_BUTTON_NORMAL);
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            white-space: nowrap;
+        }
+
+        .btn:hover {
+            background-color: var(--COLOR_BTN_HOVER_BG);
+            color: var(--COLOR_TEXT_BUTTON_HOVER);
+            box-shadow: 0 2px 4px rgba(140, 200, 232, 0.3);
+        }
+
+        /* ===== 主内容区（弹性布局 主次分明 无修改）===== */
+        .main-container {
+            display: flex;
+            gap: var(--GAP_MEDIUM);
+            height: calc(100vh - 128px);
+            margin-bottom: var(--GAP_MEDIUM);
+        }
+
+        .message-section {
+            flex: 3;
+            min-width: 400px;
+            border-radius: var(--BORDER_RADIUS);
+            box-shadow: var(--SHADOW_SOFT);
+            background-color: var(--COLOR_FRAME_ALL_BG);
+            border: 1px solid var(--COLOR_FRAME_BORDER);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .map-section {
+            flex: 2;
+            max-width: 500px;
+            min-width: 350px;
+            border-radius: var(--BORDER_RADIUS);
+            box-shadow: var(--SHADOW_SOFT);
+            background-color: var(--COLOR_FRAME_ALL_BG);
+            border: 1px solid var(--COLOR_FRAME_BORDER);
+            display: none;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .map-section.show {
+            display: flex;
+        }
+
+        /* ===== 面板头部（字体放大 适配高度）===== */
+        .panel-header {
+            height: var(--PANEL_HEADER_HEIGHT);
+            padding: 0 12px;
+            display: flex;
+            align-items: center;
+            border-bottom: 1px solid var(--COLOR_FRAME_BORDER);
+        }
+
+        .panel-icon {
+            width: 18px;
+            height: 18px;
+            background-color: var(--COLOR_TEXT_LABEL_TITLE);
+            border-radius: 4px;
+            margin-right: 8px;
+        }
+
+        .panel-title {
+            font-size: 14px;
+            color: var(--COLOR_TEXT_LABEL_TITLE);
+            font-weight: normal;
+        }
+
+        /* ===== 消息内容区（核心！消息字体放大 阅读更舒适）===== */
+        .message-content {
+            flex: 1;
+            padding: 12px;
+            overflow-y: auto;
+            background-color: var(--COLOR_MSG_PANEL_BG);
+            line-height: 1.7;
+        }
+
+        .message-content::-webkit-scrollbar {
+            width: 6px;
+            background-color: var(--COLOR_SCROLL_BAR_BG);
+            border-radius: 3px;
+        }
+
+        .message-content::-webkit-scrollbar-thumb {
+            background-color: var(--COLOR_SCROLL_BAR_ACTIVE);
+            border-radius: 3px;
+        }
+
+        .msg-item {
+            margin-bottom: 6px;
+            font-size: 14px;
+        }
+
+        /* ===== 地图内容区（选项卡+提示文字 字体放大）===== */
+        .map-tabs {
+            height: var(--PANEL_HEADER_HEIGHT);
+            display: flex;
+            padding: 0 8px;
+            gap: 4px;
+            align-items: center;
+            border-bottom: 1px solid var(--COLOR_FRAME_BORDER);
+        }
+
+        .tab-btn {
+            padding: 6px 14px;
+            border-radius: 6px;
+            background-color: var(--COLOR_TAB_NORMAL_BG);
+            color: var(--COLOR_TEXT_TAB_TITLE);
+            font-size: 13px;
+            cursor: pointer;
+            border: none;
+            transition: all 0.2s ease;
+        }
+
+        .tab-btn.active {
+            background-color: var(--COLOR_TAB_SELECT_BG);
+            border: 1px solid var(--COLOR_FRAME_BORDER);
+        }
+
+        .map-display {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 15px;
+            background-color: var(--COLOR_FRAME_ALL_BG);
+        }
+
+        .map-img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            border-radius: 6px;
+        }
+
+        .map-error {
+            font-size: 14px;
+            color: var(--COLOR_MSG_ERROR);
+        }
+
+        /* ===== 输入区（字体放大 输入框适配 核心交互区）===== */
+        .input-area {
+            height: 50px;
+            display: flex;
+            align-items: center;
+            gap: var(--GAP_SMALL);
+            padding: 0 15px;
+            background-color: var(--COLOR_ROOT_BG);
+            border-radius: var(--BORDER_RADIUS);
+            box-shadow: var(--SHADOW_SOFT);
+        }
+
+        .input-label {
+            font-size: 14px;
+            color: var(--COLOR_TEXT_LABEL_TITLE);
+            white-space: nowrap;
+        }
+
+        .input-box {
+            flex: 1;
+            height: 38px;
+            padding: 0 14px;
+            border: 1px solid var(--COLOR_FRAME_BORDER);
+            border-radius: var(--BORDER_RADIUS);
+            background-color: var(--COLOR_ENTRY_BG);
+            color: var(--COLOR_ENTRY_FG);
+            font-size: 14px;
+            outline: none;
+            transition: all 0.2s ease;
+        }
+
+        .input-box:focus {
+            border-color: #6BB8E8;
+            box-shadow: 0 0 0 2px rgba(140, 200, 232, 0.2);
+        }
+
+        .input-box::selection {
+            background-color: var(--COLOR_ENTRY_SELECT_BG);
+        }
+
+        .send-btn {
+            height: 38px;
+            padding: 0 22px;
+            border-radius: var(--BORDER_RADIUS);
+        }
+
+        /* ===== 服务器配置弹窗（所有文字放大 操作更清晰）===== */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.4);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+        }
+
+        .modal-box {
+            width: 360px;
+            padding: 25px;
+            background-color: var(--COLOR_ROOT_BG);
+            border-radius: var(--BORDER_RADIUS);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+            border: 1px solid var(--COLOR_FRAME_BORDER);
+        }
+
+        .modal-title {
+            font-size: 16px;
+            color: var(--COLOR_TEXT_LABEL_TITLE);
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .form-item {
+            margin-bottom: 15px;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 14px;
+            color: var(--COLOR_TEXT_LABEL_TITLE);
+            margin-bottom: 5px;
+        }
+
+        .form-input {
+            width: 100%;
+            height: 38px;
+            padding: 0 14px;
+            border: 1px solid var(--COLOR_FRAME_BORDER);
+            border-radius: var(--BORDER_RADIUS);
+            background-color: var(--COLOR_ENTRY_BG);
+            color: var(--COLOR_ENTRY_FG);
+            font-size: 14px;
+        }
+
+        .modal-submit {
+            width: 100%;
+            height: 38px;
+            border: none;
+            border-radius: var(--BORDER_RADIUS);
+            background-color: var(--COLOR_BTN_NORMAL_BG);
+            color: var(--COLOR_TEXT_BUTTON_NORMAL);
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .modal-submit:hover {
+            background-color: var(--COLOR_BTN_HOVER_BG);
+            color: var(--COLOR_TEXT_BUTTON_HOVER);
+        }
+    </style>
+</head>
+
+<body>
+    <!-- 顶部状态栏 -->
+    <div class="status-bar">
+        <div class="status-text" id="statusText">未设置服务器 | 等待配置...</div>
+        <div class="control-buttons">
+            <button class="btn" id="configBtn">设置服务器</button>
+            <button class="btn" id="toggleMapBtn">显示地图</button>
+        </div>
+    </div>
+
+    <!-- 主内容区域 -->
+    <div class="main-container">
+        <!-- 消息面板 -->
+        <div class="message-section">
+            <div class="panel-header">
+                <div class="panel-icon"></div>
+                <h3 class="panel-title">游戏消息面板</h3>
+            </div>
+            <div class="message-content" id="messageContent"></div>
+        </div>
+
+        <!-- 地图面板 -->
+        <div class="map-section" id="mapSection">
+            <div class="panel-header">
+                <div class="panel-icon"></div>
+                <h3 class="panel-title">楼层地图</h3>
+            </div>
+            <div class="map-tabs" id="mapTabs">
+                <button class="tab-btn active" data-map="floor1">一层地图</button>
+                <button class="tab-btn" data-map="floor2">二层地图</button>
+                <button class="tab-btn" data-map="floorF1">地下一层地图</button>
+            </div>
+            <div class="map-display" id="mapDisplay">
+                <div class="map-error">请选择地图楼层</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 输入区域 -->
+    <div class="input-area">
+        <label class="input-label">输入指令:</label>
+        <input type="text" class="input-box" id="inputBox" placeholder="输入游戏指令，回车发送...">
+        <button class="btn send-btn" id="sendBtn">发送</button>
+    </div>
+
+    <!-- 服务器配置弹窗 -->
+    <div class="modal-overlay" id="configModal">
+        <div class="modal-box">
+            <h3 class="modal-title">服务器配置</h3>
+            <div class="form-item">
+                <label class="form-label">服务器IP地址</label>
+                <input type="text" class="form-input" id="serverIp" value="127.0.0.1">
+            </div>
+            <div class="form-item">
+                <label class="form-label">服务器端口</label>
+                <input type="text" class="form-input" id="serverPort" value="9999">
+            </div>
+            <button class="modal-submit" id="confirmConfigBtn">确认配置</button>
+        </div>
+    </div>
+
+    <script>
+        // ===== 全局配置（保留原参数 无任何修改）=====
+        const MAP_PATHS = {
+            "floor1": "map_floor1.png",
+            "floor2": "map_floor2.png",
+            "floorF1": "map_floorF1.png"
+        };
+        let isConnected = false;
+        let currentHost = "127.0.0.1";
+        let currentPort = 9999;
+        let currentMap = "floor1";
+        let ws = null; // 新增：WebSocket连接对象，替代原轮询定时器
+
+        // ===== DOM元素获取 =====
+        const statusText = document.getElementById("statusText");
+        const configBtn = document.getElementById("configBtn");
+        const toggleMapBtn = document.getElementById("toggleMapBtn");
+        const messageContent = document.getElementById("messageContent");
+        const mapSection = document.getElementById("mapSection");
+        const mapTabs = document.getElementById("mapTabs");
+        const mapDisplay = document.getElementById("mapDisplay");
+        const inputBox = document.getElementById("inputBox");
+        const sendBtn = document.getElementById("sendBtn");
+        const configModal = document.getElementById("configModal");
+        const serverIp = document.getElementById("serverIp");
+        const serverPort = document.getElementById("serverPort");
+        const confirmConfigBtn = document.getElementById("confirmConfigBtn");
+
+        // ===== 页面初始化 =====
+        window.addEventListener("load", () => {
+            loadMap(currentMap);
+            bindEvents();
+        });
+
+        // ===== 事件绑定 =====
+        function bindEvents() {
+            configBtn.addEventListener("click", () => {
+                if (isConnected) {
+                    disconnectServer();
+                } else {
+                    openConfigModal();
+                }
+            });
+
+            toggleMapBtn.addEventListener("click", () => {
+                mapSection.classList.toggle("show");
+                toggleMapBtn.innerHTML = mapSection.classList.contains("show") ? "隐藏地图" : "显示地图";
+            });
+
+            mapTabs.querySelectorAll(".tab-btn").forEach(tab => {
+                tab.addEventListener("click", () => {
+                    mapTabs.querySelectorAll(".tab-btn").forEach(t => t.classList.remove("active"));
+                    tab.classList.add("active");
+                    currentMap = tab.dataset.map;
+                    loadMap(currentMap);
+                });
+            });
+
+            sendBtn.addEventListener("click", sendMessage);
+            inputBox.addEventListener("keydown", (e) => {
+                if (e.key === "Enter") sendMessage();
+            });
+
+            confirmConfigBtn.addEventListener("click", confirmConfig);
+
+            configModal.addEventListener("click", (e) => {
+                if (e.target === configModal) closeConfigModal();
+            });
+
+            // 新增：ESC键关闭配置弹窗
+            document.addEventListener("keydown", (e) => {
+                if (e.key === "Escape" && configModal.style.display === "flex") {
+                    closeConfigModal();
+                }
+            });
+        }
+
+        // ===== 地图加载 =====
+        function loadMap(mapKey) {
+            // 新增：加载中提示
+            mapDisplay.innerHTML = `<div class="map-error">正在加载地图...</div>`;
+            const imgPath = MAP_PATHS[mapKey];
+            const img = new Image();
+            img.src = imgPath;
+            img.className = "map-img";
+
+            img.onload = () => {
+                mapDisplay.innerHTML = "";
+                mapDisplay.appendChild(img);
+            };
+
+            img.onerror = () => {
+                mapDisplay.innerHTML = `<div class="map-error">地图加载失败：文件不存在 ${imgPath}</div>`;
+                addMessage(`⚠️ ${mapTabs.querySelector(`[data-map="${mapKey}"]`).textContent} 加载异常`, "error");
+            };
+        }
+
+        // ===== 消息添加（完全保留原配色和逻辑 一字未改）=====
+        function addMessage(msg, type = "default") {
+            const colorMap = {
+                self: "#5CA4D8",
+                system: "#9C6CD3",
+                success: "#64B89C",
+                error: "#E76474",
+                tip: "#E8B569",
+                default: "#555555"
+            };
+
+            const msgItem = document.createElement("div");
+            msgItem.className = "msg-item";
+            msgItem.style.color = colorMap[type];
+            msgItem.innerHTML = msg;
+
+            messageContent.appendChild(msgItem);
+            messageContent.scrollTop = messageContent.scrollHeight;
+        }
+
+        // ===== 服务器配置弹窗 =====
+        function openConfigModal() {
+            serverIp.value = currentHost;
+            serverPort.value = currentPort;
+            configModal.style.display = "flex";
+        }
+
+        function closeConfigModal() {
+            configModal.style.display = "none";
+        }
+
+        function confirmConfig() {
+            const newHost = serverIp.value.trim();
+            const newPort = serverPort.value.trim();
+
+            if (!newHost) {
+                alert("IP地址不能为空！");
+                return;
+            }
+
+            const portNum = parseInt(newPort);
+            if (isNaN(portNum) || portNum < 1 || portNum > 65535) {
+                alert("端口号必须是1-65535的整数！");
+                return;
+            }
+
+            currentHost = newHost;
+            currentPort = portNum;
+            statusText.textContent = `已配置服务器 ${currentHost}:${currentPort} | 未连接`;
+            statusText.style.color = "#E785A6";
+            addMessage(`✅ 服务器配置完成：${currentHost}:${currentPort}`, "success");
+            closeConfigModal();
+
+            alert("点击确定尝试连接服务器");
+            connectServer();
+        }
+
+        // ===== 【核心修改】WebSocket 真实连接逻辑 =====
+        function connectServer() {
+            if (isConnected) {
+                alert("已连接服务器，无需重复连接！");
+                return;
+            }
+            // 创建WebSocket连接
+            ws = new WebSocket(`ws://${currentHost}:${currentPort}`);
+
+            // 连接成功回调
+            ws.onopen = () => {
+                isConnected = true;
+                configBtn.textContent = "断开连接";
+                statusText.textContent = `已连接服务器 ${currentHost}:${currentPort} | 游戏中`;
+                statusText.style.color = "#8BC8E8";
+                addMessage(`✅ 成功连接到游戏服务器 ${currentHost}:${currentPort}！`, "success");
+                addMessage(`💡 可以开始输入游戏指令啦！`, "tip");
+            };
+
+            // 接收后端消息回调
+            ws.onmessage = (event) => {
+                const recvMsg = event.data.trim();
+                if (!recvMsg) return;
+                // 保留原消息着色逻辑
+                if (recvMsg.includes("系统公告") || recvMsg.includes("游戏结束")) {
+                    addMessage(recvMsg, "system");
+                } else if (recvMsg.includes("成功") || recvMsg.includes("获得") || recvMsg.includes("已到达")) {
+                    addMessage(recvMsg, "success");
+                } else if (recvMsg.includes("失败") || recvMsg.includes("死亡") || recvMsg.includes("不可")) {
+                    addMessage(recvMsg, "error");
+                } else if (recvMsg.includes("请") || recvMsg.includes("输入") || recvMsg.includes("可选")) {
+                    addMessage(recvMsg, "tip");
+                } else if (recvMsg) {
+                    addMessage(recvMsg, "default");
+                }
+            };
+
+            // 连接关闭回调
+            ws.onclose = () => {
+                disconnectServer();
+                addMessage("⚠️ 服务器连接已断开（网络异常/服务器关闭）", "error");
+            };
+
+            // 连接失败回调
+            ws.onerror = (error) => {
+                isConnected = false;
+                configBtn.textContent = "设置服务器";
+                statusText.textContent = `连接失败 ${currentHost}:${currentPort} | 请检查配置`;
+                statusText.style.color = "#E785A6";
+                addMessage(`❌ 连接服务器失败：${currentHost}:${currentPort}，请检查IP/端口或服务器是否启动`, "error");
+            };
+        }
+
+        // ===== 【核心修改】断开连接逻辑 =====
+        function disconnectServer() {
+            if (isConnected && ws) {
+                ws.close();
+                ws = null;
+            }
+            isConnected = false;
+            configBtn.textContent = "设置服务器";
+            statusText.textContent = `已配置服务器 ${currentHost}:${currentPort} | 已断开`;
+            statusText.style.color = "#E785A6";
+            addMessage("❌ 已断开与服务器的连接", "error");
+        }
+
+        // ===== 【核心修改】发送指令逻辑 =====
+        function sendMessage() {
+            const msg = inputBox.value.trim();
+            if (!msg) {
+                alert("输入内容不能为空！");
+                return;
+            }
+
+            if (!isConnected) {
+                alert("请先配置并连接服务器再发送指令！");
+                return;
+            }
+
+            try {
+                // WebSocket发送纯文本，加换行符适配Python readline
+                ws.send(msg + "\n");
+                addMessage(`你：${msg}`, "self");
+                inputBox.value = "";
+                // 新增：发送后自动聚焦输入框
+                inputBox.focus();
+            } catch (e) {
+                addMessage(`❌ 发送指令失败：连接已断开，请重新连接`, "error");
+            }
+        }
+    </script>
+</body>
+
+</html>
